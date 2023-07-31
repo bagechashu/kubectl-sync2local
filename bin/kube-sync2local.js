@@ -1,0 +1,1 @@
+require('../lib/kube-sync2local.js');

@@ -1,0 +1,32 @@
+{
+  "name": "kubectl-sync2local",
+  "version": "1.0.0",
+  "description": "kubectl plugin for sync online resource detail to local yaml.",
+  "main": "index.js",
+  "private": "true",
+  "bin": {
+    "kube-sync2local": "bin/kube-sync2local.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "dev": "npm run build; node bin/kube-sync2local.js -f tmp.yaml"
+  },
+  "author": "xianleeti",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/lodash": "^4.14.196",
+    "clean-webpack-plugin": "^4.0.0",
+    "html-webpack-plugin": "^5.5.3",
+    "ts-loader": "^9.4.4",
+    "typescript": "^5.1.6",
+    "webpack": "^5.88.2",
+    "webpack-bundle-analyzer": "^4.9.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^0.18.1",
+    "js-yaml": "^4.1.0",
+    "lodash": "^4.17.21"
+  }
+}

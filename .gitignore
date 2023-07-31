@@ -1,0 +1,31 @@
+# Ignore system and temporary files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.log
+
+# Ignore JetBrains IDE project files
+.idea/
+*.iml
+
+# Ignore Visual Studio Code workspace settings
+.vscode/
+
+# Ignore VSC project-specific files
+*.code-workspace
+
+# Ignore VSC user-specific settings
+.settings/
+
+# Ignore VSC extensions
+node_modules/
+lib/
+
+# Ignore VSC debugging files
+launch.json
+tasks.json
+
+# temp dir
+tmp
+*tmp*
