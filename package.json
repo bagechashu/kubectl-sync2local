@@ -1,12 +1,22 @@
 {
   "name": "kubectl-sync2local",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "kubectl plugin for sync online resource detail to local yaml.",
-  "main": "index.js",
-  "private": "true",
+  "keywords": [
+    "kubernetes",
+    "kubectl",
+    "plugin"
+  ],
+  "main": "bin/kube-sync2local.js",
   "bin": {
-    "kube-sync2local": "bin/kube-sync2local.js"
+    "kubectl-sync2local": "bin/kube-sync2local.js"
   },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "package.json"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
