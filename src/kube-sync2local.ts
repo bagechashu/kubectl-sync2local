@@ -12,15 +12,23 @@ async function getOnlineResource(kc: KubeConfig, namespace: string, resourceName
 
     switch (resourceType) {
       case "Deployment":
-      case "DaemonSet":
+        const deployResp = await appsApi.readNamespacedDeployment(resourceName, namespace);
+        return deployResp.body;
       case "StatefulSet":
-        const appsResp = await appsApi.readNamespacedDeployment(resourceName, namespace);
-        return appsResp.body;
+        const dsResp = await appsApi.readNamespacedStatefulSet(resourceName, namespace);
+        return dsResp.body;
+      case "DaemonSet":
+        const stsResp = await appsApi.readNamespacedDaemonSet(resourceName, namespace);
+        return stsResp.body;
       case "Service":
+        const svcResp = await coreApi.readNamespacedService(resourceName, namespace);
+        return svcResp.body;
       case "ConfigMap":
+        const cmResp = await coreApi.readNamespacedConfigMap(resourceName, namespace);
+        return cmResp.body;
       case "Secret":
-        const coreResp = await coreApi.readNamespacedService(resourceName, namespace);
-        return coreResp.body;
+        const secretResp = await coreApi.readNamespacedSecret(resourceName, namespace);
+        return secretResp.body;
       default:
         throw new Error(`Unsupported resource type: ${resourceType}`);
     }
