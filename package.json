@@ -1,6 +1,6 @@
 {
   "name": "kubectl-sync2local",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "kubectl plugin for sync online resource detail to local yaml.",
   "keywords": [
     "kubernetes",
