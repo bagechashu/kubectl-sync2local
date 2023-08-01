@@ -67,7 +67,7 @@ async function cleanK8sResource(jsObject: any) {
   return jsObject;
 }
 
-async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
+export async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
   try {
     const jsObjects = yamlToJSObjects(fs.readFileSync(localPath, "utf8"));
     const mergedResources: any[] = [];
@@ -85,7 +85,8 @@ async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
 
       const onlineResource = await getOnlineResource(kc, namespace, resourceName, resourceType);
       const cleanedResources = await cleanK8sResource(onlineResource);
-      const mergedResource = mergeJSObjects(jsObject, cleanedResources);
+      const cleanedJsObject = await cleanK8sResource(jsObject);
+      const mergedResource = mergeJSObjects(cleanedJsObject, cleanedResources);
       mergedResources.push(mergedResource);
 
       console.log(`Successfully merged resource: ${resourceName} (Type: ${resourceType})`);
@@ -93,6 +94,64 @@ async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
 
     const yamlString = jsObjectsToYaml(mergedResources);
     // console.log(mergedResources);
+    fs.writeFileSync(localPath, yamlString);
+    console.log(`Successfully updated local YAML`);
+  } catch (error) {
+    console.error(`Failed to merge and update local resource: ${error}`);
+    throw error;
+  }
+}
+
+export async function mergeAndUpdateLocalResourceContainers(kc: KubeConfig, localPath: string) {
+  try {
+    const jsObjects = yamlToJSObjects(fs.readFileSync(localPath, "utf8"));
+    const mergedResources: any[] = [];
+
+    for (const jsObject of jsObjects) {
+      const { metadata, kind } = jsObject;
+      const namespace = metadata?.namespace;
+      const resourceName = metadata?.name;
+      const resourceType = kind as ResourceTypes;
+
+      if (!namespace || !resourceName || !resourceType) {
+        throw new Error(`Invalid YAML object: Missing 'metadata.namespace', 'metadata.name', or 'kind' property.`);
+      }
+
+      if (resourceType === "Deployment" || resourceType === "DaemonSet" || resourceType === "StatefulSet") {
+        console.log(`Processing resource: ${resourceName} (Type: ${resourceType})`);
+
+        const onlineResource = await getOnlineResource(kc, namespace, resourceName, resourceType);
+        const cleanedResources = await cleanK8sResource(onlineResource);
+
+        const onlineContainers = cleanedResources?.spec?.template?.spec?.containers;
+        const localContainers = jsObject?.spec?.template?.spec?.containers;
+
+        if (onlineContainers && localContainers) {
+          // Sync spec.template.spec.containers[].image, spec.template.spec.containers[].env, and spec.template.spec.containers[].command
+          localContainers.forEach((container: any, index: number) => {
+            const matchingContainer = onlineContainers.find((c: any) => c.name === container.name);
+            if (matchingContainer) {
+              localContainers[index].image = matchingContainer.image;
+              localContainers[index].env = matchingContainer.env;
+              localContainers[index].command = matchingContainer.command;
+            }
+          });
+        }
+
+        if (jsObject.spec?.template?.spec) {
+          jsObject.spec.template.spec.containers = localContainers;
+        }
+        mergedResources.push(jsObject);
+
+        console.log(`Successfully merged resource: ${resourceName} (Type: ${resourceType})`);
+      } else {
+        // For other resource types, skip updating and keep the original object
+        mergedResources.push(jsObject);
+      }
+    }
+
+    // Convert merged resources back to YAML string and write to the file
+    const yamlString = jsObjectsToYaml(mergedResources);
     fs.writeFileSync(localPath, yamlString);
     console.log(`Successfully updated local YAML`);
   } catch (error) {

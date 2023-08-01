@@ -14,7 +14,7 @@ function yamlToJSObjects(yamlString: string): any[] {
 
 function jsObjectsToYaml(jsObjects: any[]): string {
   try {
-    return jsObjects.map((obj) => yaml.dump(obj, { quotingType: '"' })).join("---\n"); // Join documents with '---\n'
+    return jsObjects.map((obj) => yaml.dump(obj, { quotingType: '"', noArrayIndent: true })).join("---\n"); // Join documents with '---\n'
   } catch (error) {
     throw new Error("Error converting JS objects to YAML: " + (error as Error).message);
   }
