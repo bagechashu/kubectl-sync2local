@@ -31,6 +31,28 @@ async function getOnlineResource(kc: KubeConfig, namespace: string, resourceName
   }
 }
 
+async function cleanK8sResource(jsObject: any) {
+  const { metadata, spec } = jsObject;
+
+  // Remove specific elements from the metadata object
+  delete metadata?.annotations;
+  delete metadata?.creationTimestamp;
+  delete metadata?.generation;
+  delete metadata?.managedFields;
+  delete metadata?.resourceVersion;
+  delete metadata?.selfLink;
+  delete metadata?.uid;
+
+  // Remove specific elements from the spec.template.metadata object
+  if (spec?.template?.metadata) {
+    delete spec.template.metadata.annotations;
+    delete spec.template.metadata.creationTimestamp;
+  }
+
+  // Remove the status object entirely
+  jsObject.status = undefined;
+  return jsObject;
+}
 async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
   try {
     const jsObjects = yamlToJSObjects(fs.readFileSync(localPath, "utf8"));
@@ -45,17 +67,18 @@ async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
       if (!namespace || !resourceName || !resourceType) {
         throw new Error(`Invalid YAML object: Missing 'metadata.namespace', 'metadata.name', or 'kind' property.`);
       }
-      console.log(namespace, resourceName, resourceType);
+      // console.log(namespace, resourceName, resourceType);
 
       const onlineResource = await getOnlineResource(kc, namespace, resourceName, resourceType);
-      const mergedResource = mergeJSObjects(jsObject, onlineResource);
+      const cleanedResources = await cleanK8sResource(onlineResource);
+      const mergedResource = mergeJSObjects(jsObject, cleanedResources);
       mergedResources.push(mergedResource);
 
       console.log(`Successfully merged resource: ${resourceName} (Type: ${resourceType})`);
     }
 
     const yamlString = jsObjectsToYaml(mergedResources);
-    console.log(mergedResources);
+    // console.log(mergedResources);
     fs.writeFileSync(localPath, yamlString);
     console.log(`Successfully updated local YAML`);
   } catch (error) {
