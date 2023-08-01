@@ -43,6 +43,11 @@ async function cleanK8sResource(jsObject: any) {
   delete metadata?.selfLink;
   delete metadata?.uid;
 
+  // Check if clusterIP is "None" before deleting
+  if (spec?.clusterIP && spec.clusterIP.toLowerCase() !== "none") {
+    delete spec.clusterIP;
+  }
+
   // Remove specific elements from the spec.template.metadata object
   if (spec?.template?.metadata) {
     delete spec.template.metadata.annotations;
@@ -53,6 +58,7 @@ async function cleanK8sResource(jsObject: any) {
   jsObject.status = undefined;
   return jsObject;
 }
+
 async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
   try {
     const jsObjects = yamlToJSObjects(fs.readFileSync(localPath, "utf8"));
