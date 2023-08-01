@@ -24,20 +24,20 @@ spec:
         workload.user.cattle.io/workloadselector: deployment-default-db-agent
     spec:
       containers:
-        - image: xianleeti/db-agent:0.09-root
-          imagePullPolicy: Always
-          name: db-agent
-          resources: {}
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities: {}
-            privileged: false
-            readOnlyRootFilesystem: false
-            runAsNonRoot: false
-          stdin: true
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
-          tty: true
+      - image: xianleeti/db-agent:0.09-root
+        imagePullPolicy: Always
+        name: db-agent
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: false
+        stdin: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        tty: true
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
@@ -52,18 +52,18 @@ metadata:
   name: db-agent
   namespace: default
   ownerReferences:
-    - apiVersion: apps/v1beta2
-      controller: true
-      kind: deployment
-      name: db-agent
-      uid: d91a57cf-bb35-4abf-b46e-91eb33826377
+  - apiVersion: apps/v1beta2
+    controller: true
+    kind: deployment
+    name: db-agent
+    uid: d91a57cf-bb35-4abf-b46e-91eb33826377
 spec:
   clusterIP: None
   ports:
-    - name: default
-      port: 42
-      protocol: TCP
-      targetPort: 42
+  - name: default
+    port: 42
+    protocol: TCP
+    targetPort: 42
   selector:
     workload.user.cattle.io/workloadselector: deployment-default-db-agent
   sessionAffinity: None
