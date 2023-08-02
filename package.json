@@ -1,6 +1,6 @@
 {
   "name": "kubectl-sync2local",
-  "version": "1.0.10",
+  "version": "1.1.0",
   "description": "A tool for sync online resource detail to Local YAML manifest file.",
   "repository": {
     "type": "git",

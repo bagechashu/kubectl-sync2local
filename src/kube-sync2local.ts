@@ -2,10 +2,146 @@ import * as fs from "fs";
 import { yamlToJSObjects, jsObjectsToYaml, mergeJSObjects } from "./yaml-tool";
 import { KubeConfig, CoreV1Api, AppsV1Api } from "@kubernetes/client-node";
 
-// Define TypeScript types for supported resource types
-type ResourceTypes = "Service" | "Deployment" | "DaemonSet" | "StatefulSet" | "ConfigMap" | "Secret";
 
-async function getOnlineResource(kc: KubeConfig, namespace: string, resourceName: string, resourceType: ResourceTypes) {
+// Define TypeScript types for supported resource types
+type ServiceTypes = "Service";
+type WorkLoadTypes = "Deployment" | "DaemonSet" | "StatefulSet";
+type StorageTypes = "ConfigMap" | "Secret";
+
+
+// Merge and update online resource to local.
+export async function mergeAndUpdateLocalResources(kc: KubeConfig, localPath: string) {
+  try {
+    const localResources = await getLocalResources(localPath);
+    const mergedResources = await mergeOnlineResources(kc, localResources);
+    await updateLocalResources(localPath, mergedResources);
+  } catch (error) {
+    console.error(`Failed to merge and update local resource: ${error}`);
+    throw error;
+  }
+}
+
+// Merge and update online workload resource images config to local.
+export async function mergeAndUpdateLocalResourcesContainers(kc: KubeConfig, localPath: string) {
+  try {
+    const localResources = await getLocalResources(localPath);
+    const mergedResources = await mergeOnlineWorkloadContainers(kc, localResources);
+    await updateLocalResources(localPath, mergedResources);
+  } catch (error) {
+    console.error(`Failed to merge and update local resource: ${error}`);
+    throw error;
+  }
+}
+
+// Merge Online Resources to localResources
+export async function mergeOnlineResources(kc: KubeConfig, localResources: any[]) {
+  const mergedResources: any[] = [];
+
+  for (const localResource of localResources) {
+    const { resourceType, namespace, resourceName } = await getResourceTypeNamespaceName(localResource)
+    const onlineResource = await getOnlineResource(kc, namespace, resourceType, resourceName);
+    const cleanedLocalResource = await cleanResource(localResource);
+    const cleanedOnlineResource = await cleanResource(onlineResource);
+    const mergedResource = mergeJSObjects(cleanedLocalResource, cleanedOnlineResource);
+    mergedResources.push(mergedResource);
+
+    console.log(`Successfully merged resource: ${resourceName} (Type: ${resourceType})`);
+  }
+
+  return mergedResources;
+}
+
+// Merge Online Workload Container config to localResources
+export async function mergeOnlineWorkloadContainers(kc: KubeConfig, localResources: any[]) {
+  const mergedResources: any[] = [];
+
+  for (const localResource of localResources) {
+    const { resourceType, namespace, resourceName } = await getResourceTypeNamespaceName(localResource)
+
+    if (resourceType === "Deployment" || resourceType === "DaemonSet" || resourceType === "StatefulSet") {
+      console.log(`Processing resource: ${resourceName} (Type: ${resourceType})`);
+
+      const onlineResource = await getOnlineResource(kc, namespace, resourceType, resourceName);
+      const cleanedOnlineResources = await cleanResource(onlineResource);
+
+      await mergeContainerSpec(cleanedOnlineResources, localResource)
+
+      mergedResources.push(localResource);
+
+      console.log(`Successfully merged resource: ${resourceName} (Type: ${resourceType})`);
+    } else {
+      // For other resource types, skip updating and keep the original object
+      mergedResources.push(localResource);
+    }
+  }
+  return mergedResources;
+}
+
+// merge onlineWorkload Container Spec to localWorkload
+export async function mergeContainerSpec(onlineWorkload: any, localWorkload: any) {
+  if (onlineWorkload?.spec?.template?.spec && localWorkload.spec?.template?.spec) {
+    const onlineContainers = onlineWorkload?.spec?.template?.spec?.containers;
+    const localContainers = localWorkload?.spec?.template?.spec?.containers;
+
+    if (onlineContainers && localContainers) {
+      // Sync spec.template.spec.containers[].image, spec.template.spec.containers[].env, and spec.template.spec.containers[].command
+      localContainers.forEach((container: any, index: number) => {
+        const matchingContainer = onlineContainers.find((c: any) => c.name === container.name);
+        if (matchingContainer) {
+          localContainers[index].image = matchingContainer.image;
+          localContainers[index].env = matchingContainer.env;
+          localContainers[index].command = matchingContainer.command;
+        }
+      });
+    }
+
+    localWorkload.spec.template.spec.containers = localContainers;
+  }
+}
+
+export async function getResourceTypeNamespaceName(localResource: any) {
+  const { metadata, kind } = localResource;
+  const resourceType = kind as ServiceTypes | WorkLoadTypes | StorageTypes;
+  const namespace = metadata?.namespace;
+  const resourceName = metadata?.name;
+
+  if (!namespace || !resourceName || !resourceType) {
+    throw new Error(`Invalid Resource object: Missing 'metadata.namespace', 'metadata.name', or 'kind' property.`);
+  }
+  return { resourceType, namespace, resourceName };
+}
+
+// Remove unnecessary resource items.
+export async function cleanResource(resource: any) {
+  const { metadata, spec } = resource;
+
+  // Remove specific elements from the metadata object
+  delete metadata?.annotations;
+  delete metadata?.creationTimestamp;
+  delete metadata?.generation;
+  delete metadata?.managedFields;
+  delete metadata?.resourceVersion;
+  delete metadata?.selfLink;
+  delete metadata?.uid;
+
+  // Check if clusterIP is "None" before deleting
+  if (spec?.clusterIP && spec.clusterIP.toLowerCase() !== "none") {
+    delete spec.clusterIP;
+  }
+
+  // Remove specific elements from the spec.template.metadata object
+  if (spec?.template?.metadata) {
+    delete spec.template.metadata.annotations;
+    delete spec.template.metadata.creationTimestamp;
+  }
+
+  // Remove the status object entirely
+  resource.status = undefined;
+  return resource;
+}
+
+// Get online resources by namespace, resourcename and resourceTypes.
+export async function getOnlineResource(kc: KubeConfig, namespace: string, resourceType: ServiceTypes | WorkLoadTypes | StorageTypes, resourceName: string) {
   try {
     const coreApi = kc.makeApiClient(CoreV1Api);
     const appsApi = kc.makeApiClient(AppsV1Api);
@@ -39,152 +175,25 @@ async function getOnlineResource(kc: KubeConfig, namespace: string, resourceName
   }
 }
 
-async function cleanK8sResource(jsObject: any) {
-  const { metadata, spec } = jsObject;
-
-  // Remove specific elements from the metadata object
-  delete metadata?.annotations;
-  delete metadata?.creationTimestamp;
-  delete metadata?.generation;
-  delete metadata?.managedFields;
-  delete metadata?.resourceVersion;
-  delete metadata?.selfLink;
-  delete metadata?.uid;
-
-  // Check if clusterIP is "None" before deleting
-  if (spec?.clusterIP && spec.clusterIP.toLowerCase() !== "none") {
-    delete spec.clusterIP;
-  }
-
-  // Remove specific elements from the spec.template.metadata object
-  if (spec?.template?.metadata) {
-    delete spec.template.metadata.annotations;
-    delete spec.template.metadata.creationTimestamp;
-  }
-
-  // Remove the status object entirely
-  jsObject.status = undefined;
-  return jsObject;
-}
-
-export async function mergeAndUpdateLocalResource(kc: KubeConfig, localPath: string) {
+// Get local resources from YAML file
+export async function getLocalResources(localPath: string) {
   try {
-    const jsObjects = yamlToJSObjects(fs.readFileSync(localPath, "utf8"));
-    const mergedResources: any[] = [];
-
-    for (const jsObject of jsObjects) {
-      const { metadata, kind } = jsObject;
-      const namespace = metadata?.namespace;
-      const resourceName = metadata?.name;
-      const resourceType = kind as ResourceTypes;
-
-      if (!namespace || !resourceName || !resourceType) {
-        throw new Error(`Invalid YAML object: Missing 'metadata.namespace', 'metadata.name', or 'kind' property.`);
-      }
-      // console.log(namespace, resourceName, resourceType);
-
-      const onlineResource = await getOnlineResource(kc, namespace, resourceName, resourceType);
-      const cleanedResources = await cleanK8sResource(onlineResource);
-      const cleanedJsObject = await cleanK8sResource(jsObject);
-      const mergedResource = mergeJSObjects(cleanedJsObject, cleanedResources);
-      mergedResources.push(mergedResource);
-
-      console.log(`Successfully merged resource: ${resourceName} (Type: ${resourceType})`);
-    }
-
-    const yamlString = jsObjectsToYaml(mergedResources);
-    // console.log(mergedResources);
-    fs.writeFileSync(localPath, yamlString);
-    console.log(`Successfully updated local YAML`);
+    const localResources = yamlToJSObjects(fs.readFileSync(localPath, "utf8"));
+    return localResources;
   } catch (error) {
-    console.error(`Failed to merge and update local resource: ${error}`);
+    console.error(`Failed to read local resource YAML file: ${error}`);
     throw error;
   }
 }
 
-export async function mergeAndUpdateLocalResourceContainers(kc: KubeConfig, localPath: string) {
+// Update local resources in YAML file
+export async function updateLocalResources(localPath: string, mergedResources: any[]) {
   try {
-    const jsObjects = yamlToJSObjects(fs.readFileSync(localPath, "utf8"));
-    const mergedResources: any[] = [];
-
-    for (const jsObject of jsObjects) {
-      const { metadata, kind } = jsObject;
-      const namespace = metadata?.namespace;
-      const resourceName = metadata?.name;
-      const resourceType = kind as ResourceTypes;
-
-      if (!namespace || !resourceName || !resourceType) {
-        throw new Error(`Invalid YAML object: Missing 'metadata.namespace', 'metadata.name', or 'kind' property.`);
-      }
-
-      if (resourceType === "Deployment" || resourceType === "DaemonSet" || resourceType === "StatefulSet") {
-        console.log(`Processing resource: ${resourceName} (Type: ${resourceType})`);
-
-        const onlineResource = await getOnlineResource(kc, namespace, resourceName, resourceType);
-        const cleanedResources = await cleanK8sResource(onlineResource);
-
-        const onlineContainers = cleanedResources?.spec?.template?.spec?.containers;
-        const localContainers = jsObject?.spec?.template?.spec?.containers;
-
-        if (onlineContainers && localContainers) {
-          // Sync spec.template.spec.containers[].image, spec.template.spec.containers[].env, and spec.template.spec.containers[].command
-          localContainers.forEach((container: any, index: number) => {
-            const matchingContainer = onlineContainers.find((c: any) => c.name === container.name);
-            if (matchingContainer) {
-              localContainers[index].image = matchingContainer.image;
-              localContainers[index].env = matchingContainer.env;
-              localContainers[index].command = matchingContainer.command;
-            }
-          });
-        }
-
-        if (jsObject.spec?.template?.spec) {
-          jsObject.spec.template.spec.containers = localContainers;
-        }
-        mergedResources.push(jsObject);
-
-        console.log(`Successfully merged resource: ${resourceName} (Type: ${resourceType})`);
-      } else {
-        // For other resource types, skip updating and keep the original object
-        mergedResources.push(jsObject);
-      }
-    }
-
-    // Convert merged resources back to YAML string and write to the file
     const yamlString = jsObjectsToYaml(mergedResources);
     fs.writeFileSync(localPath, yamlString);
     console.log(`Successfully updated local YAML`);
   } catch (error) {
-    console.error(`Failed to merge and update local resource: ${error}`);
+    console.error(`Failed to update local resource YAML file: ${error}`);
     throw error;
   }
 }
-
-// Main function
-async function syncKubernetesResource() {
-  // Get the file path from the command-line argument
-  const args = process.argv.slice(2); // Ignore the first two elements (node binary and script path)
-  const fileFlagIndex = args.indexOf("-f");
-
-  if (fileFlagIndex === -1) {
-    console.error("Error: File path not provided. Use '-f <file-path>' to specify the YAML file path.");
-    return;
-  }
-
-  const localPath = args[fileFlagIndex + 1];
-  if (!localPath) {
-    console.error("Error: Invalid file path.");
-    return;
-  }
-
-  const kc = new KubeConfig();
-  kc.loadFromDefault();
-
-  try {
-    await mergeAndUpdateLocalResource(kc, localPath);
-  } catch (error) {
-    console.error(`Failed to sync Kubernetes resource: ${error}`);
-  }
-}
-
-syncKubernetesResource();
