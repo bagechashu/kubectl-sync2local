@@ -1,7 +1,7 @@
 {
   "name": "kubectl-sync2local",
-  "version": "1.0.5",
-  "description": "kubectl plugin for sync online resource detail to local yaml.",
+  "version": "1.0.10",
+  "description": "A tool for sync online resource detail to Local YAML manifest file.",
   "repository": {
     "type": "git",
     "url": "https://github.com/bagechashu/kubectl-sync2local.git"
@@ -11,7 +11,7 @@
     "kubectl",
     "plugin"
   ],
-  "main": "bin/kube-sync2local.js",
+  "main": "lib/kube-sync2local.js",
   "bin": {
     "kubectl-sync2local": "bin/kube-sync2local.js"
   },
@@ -24,9 +24,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "dev": "npm run build; node bin/kube-sync2local.js -f tmp.yaml"
+    "dev": "npm run build; node bin/kube-sync2local.js -f tmp.yaml",
+    "publish": "npm run build; npm publish"
   },
-  "author": "xianleeti",
+  "author": "bashu",
   "license": "MIT",
   "devDependencies": {
     "@types/lodash": "^4.14.196",

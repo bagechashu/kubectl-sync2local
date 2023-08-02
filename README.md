@@ -23,4 +23,23 @@ kubectl sync2local -f tmp.yaml
 
 ```
 
+# import
+
+```
+import { mergeAndUpdateLocalResource, mergeAndUpdateLocalResourceContainers } from "kubectl-sync2local";
+
+
+const localPath = "./tmp.yaml"
+
+const kc = new KubeConfig();
+kc.loadFromDefault();
+
+try {
+    mergeAndUpdateLocalResource(kc, localPath);
+} catch (error) {
+    console.error(`Failed to sync Kubernetes resource: ${error}`);
+}
+
+```
+
 # Thanks to ChatGPT !!!
